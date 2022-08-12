@@ -1,0 +1,68 @@
+map $http_upgrade $connection_upgrade {
+        default upgrade;
+        '' close;
+    }
+
+upstream jupyter {
+   hash $scheme$request_uri;
+   server 192.168.1.26;
+   server 192.168.1.21;
+   server 192.168.1.14;
+}
+
+server {
+    client_max_body_size 5000M;
+    server_name jupyter.deepgreyresearch.com; # managed by Certbot
+
+	location / {
+	    proxy_pass http://jupyter; 
+            proxy_set_header Host $host;            
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+#            proxy_set_header Upgrade "websocket";
+            proxy_set_header Connection $connection_upgrade;
+            proxy_set_header X-Scheme $scheme;
+            proxy_connect_timeout 86400;
+            proxy_read_timeout 86400;
+            proxy_send_timeout 86400;
+#            send_timeout 86400;
+#            read_timeout 86400;
+
+           proxy_buffering off;
+	}
+        
+    listen [::]:443 ssl ipv6only=on; # managed by Certbot
+    listen 443 ssl; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/jupyter.deepgreyresearch.com/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/jupyter.deepgreyresearch.com/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+
+}
+server {
+    if ($host = jupyter.deepgreyresearch.com) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+
+    listen 80 ;
+    listen [::]:80 ;
+    server_name jupyter.deepgreyresearch.com;
+    return 404; # managed by Certbot
+
+}
+server {
+    server_name jupyter.deepgreyresearch.com;
+
+        listen 6006 ssl;
+        ssl_certificate /etc/letsencrypt/live/jupyter.deepgreyresearch.com/fullchain.pem; # managed by Certbot
+        ssl_certificate_key /etc/letsencrypt/live/jupyter.deepgreyresearch.com/privkey.pem; # managed by Certbot
+        include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+        ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+    
+    if ($host = jupyter.deepgreyresearch.com) {
+        return 301 https://tb.deepgreyresearch.com;
+    } # managed by Certbot
+}

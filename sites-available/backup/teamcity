@@ -1,0 +1,56 @@
+map $http_upgrade $connection_upgrade {
+        default upgrade;
+        '' close;
+    }
+
+upstream teamcity {
+   hash $scheme$request_uri;
+   server 192.168.1.130:8111;
+}
+
+server {
+    client_max_body_size 10G;
+    server_name teamcity.deepgreyresearch.com;
+
+	location / {
+	    proxy_pass http://teamcity; 
+            proxy_set_header Host $host;            
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection $connection_upgrade;
+            proxy_set_header X-Scheme $scheme;
+            proxy_connect_timeout 86400;
+            proxy_read_timeout 86400;
+            proxy_send_timeout 86400;
+#            send_timeout 86400;
+#            read_timeout 86400;
+
+           proxy_buffering off;
+	}
+
+
+    listen [::]:443 ssl; # managed by Certbot
+    listen 443 ssl; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/teamcity.deepgreyresearch.com/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/teamcity.deepgreyresearch.com/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+
+}
+
+
+server {
+    if ($host = teamcity.deepgreyresearch.com) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+
+    server_name teamcity.deepgreyresearch.com;
+    listen 80 ;
+    listen [::]:80 ;
+    return 404; # managed by Certbot
+
+
+}

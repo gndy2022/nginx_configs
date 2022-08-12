@@ -1,0 +1,76 @@
+map $http_upgrade $connection_upgrade {
+        default upgrade;
+        '' close;
+    }
+
+upstream gitpod {
+   hash $remote_addr$scheme$request_uri consistent;
+#   server 10.88.1.29:443;
+#   server 10.88.0.187:443;
+   server 192.168.1.132:443;
+}
+
+
+server {
+    server_name gitpod.deepgreyresearch.com;
+
+    location /oauth2/ {
+        proxy_pass       http://127.0.0.1:4180;
+        proxy_set_header Host                    $host;
+        proxy_set_header X-Real-IP               $remote_addr;
+        proxy_set_header X-Scheme                $scheme;
+        proxy_set_header X-Auth-Request-Redirect $request_uri;
+#        proxy_set_header X-Auth-Request-Redirect $scheme://$host$request_uri;
+    }
+
+    location = /oauth2/auth {
+        proxy_pass       http://127.0.0.1:4180;
+        proxy_set_header Host             $host;
+        proxy_set_header X-Real-IP        $remote_addr;
+        proxy_set_header X-Scheme         $scheme;
+        # nginx auth_request includes headers but not body
+        proxy_set_header Content-Length   "";
+        proxy_pass_request_body           off;
+    }
+
+    location / {
+#        auth_basic "GitPod Auth";
+#        auth_basic_user_file /etc/nginx/.htpasswd-gitpod;
+
+        auth_request /oauth2/auth;
+        error_page 401 = /oauth2/sign_in;
+        auth_request_set $user   $upstream_http_x_auth_request_user;
+        auth_request_set $email  $upstream_http_x_auth_request_email;
+        proxy_set_header X-User  $user;
+        proxy_set_header X-Email $email;
+        auth_request_set $auth_cookie $upstream_http_set_cookie;
+        add_header Set-Cookie $auth_cookie;
+
+#        proxy_pass https://gitpod.deepgreyresearch.com;
+        proxy_pass https://gitpod;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header X-Scheme $scheme;
+        proxy_connect_timeout 86400;
+        proxy_read_timeout 86400;
+        proxy_send_timeout 86400;
+    }
+    listen [::]:443 ssl; # managed by Certbot
+    listen 443 ssl; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/ws.gitpod.deepgreyresearch.com/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/ws.gitpod.deepgreyresearch.com/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name gitpod.deepgreyresearch.com;
+    return 301 https://$host$request_uri;
+}
+
